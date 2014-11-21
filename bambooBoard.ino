@@ -67,7 +67,14 @@ IPAddress ip(192, 168, 0, 177);
 // that you want to connect to (port 80 is default for HTTP):
 EthernetClient client;
 char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI"};
-int projectCount = 3;
+const int projectCount = 3;
+const int boardRows = 5;
+const int boardColumns = 8;
+const int UNSET = -1;
+const int SUCCESS = 1;
+const int FAILURE = 0;
+int buildResult[3][5] = {-1};
+
 int lastStatus[3];
 int status[3];
 
@@ -75,10 +82,10 @@ int status[3];
 
 void setup() {
 
-for (int i = 0; i < projectCount; i++) {
-  lastStatus[i] = -1;
-  status[i] = -1;
-}
+  for (int i = 0; i < projectCount; i++) {
+    lastStatus[i] = -1;
+    status[i] = -1;
+  }
   //turn off sd card
   //pinMode(4,OUTPUT);
   //digitalWrite(4,HIGH);
@@ -103,8 +110,10 @@ for (int i = 0; i < projectCount; i++) {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.02");
+  Serial.println("v.1.04");
   // if you get a connection, report back via serial:
+
+  //init the board
 
 }
 
@@ -164,14 +173,63 @@ void loop()
   displayNormal();
   Serial.print("Sleeping ");
   for (int i = 0; i < 10; i++) { //sleep for next round
-    delay(500);
+
+    flickerPixels();
     Serial.print(".");
+
   }
   Serial.println();
 
 
   // if the server's disconnected, stop the client:
 
+}
+/**
+slee function
+**/
+void flickerPixels() {
+    int totalLitPixels = 5;
+    int pixel[5] = {-1};
+    for (int i = 0; i < totalLitPixels; i++) {
+      int newPixel = rand() % strip.numPixels();
+      bool collision = false;
+      for (int j = 0; j < i+1; j++) {
+        if (pixel[j] == newPixel) { //don't add twice
+          collision = true;
+        }
+      }
+      if (collision == false) {
+        pixel[i] = newPixel;
+      }
+
+    }
+
+    uint32_t savedPixelColor[totalLitPixels];
+    for (int i = 0; i < 4;  i++) { //cycles
+      for (int j = 0; j < totalLitPixels;  j++) {
+        if (pixel[j] != -1) {
+            savedPixelColor[j] = strip.getPixelColor(pixel[j]);
+            strip.setPixelColor(pixel[j], strip.Color(rand() % 127, rand() % 127, rand() % 127));
+        }
+      }
+      strip.show();
+      delay(75);
+      for (int j = 0; j < totalLitPixels;  j++) {
+        if (pixel[j] != -1) {
+          strip.setPixelColor(pixel[j], 0);
+        }
+      }
+      strip.show();
+      delay(75);
+
+      for (int j = 0; j < totalLitPixels;  j++) {
+        if (pixel[j] != -1) {
+          strip.setPixelColor(pixel[j], savedPixelColor[j]); //set color back
+        }
+      }
+      strip.show();
+
+    }
 }
 
 void displayNormal()
@@ -234,8 +292,8 @@ int getStatus(String project)
     }
 
   }
-
-    client.stop();
+  //call it now and later
+  client.stop();
 
 
   return returnVal;

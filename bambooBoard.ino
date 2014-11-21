@@ -91,7 +91,7 @@ void setup() {
   //digitalWrite(4,HIGH);
 
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
+  Serial.begin(57600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   }
@@ -266,31 +266,62 @@ int getStatus(String project)
       return returnVal;
   }
   delay(100);
-  String listener;
+  String freezeListener;
+  String buildListener;
+
+  int buildsFound = 0;
+  int builds[5] = {-1};
    //this makes it freakin work
   char openXml = '<';
   char closeXml = '>';
-  while (client.available()) {
-    char inchar = client.read();
-    //Serial.print(inchar);
-    listener += inchar;
+  int noCharCount = 0;
+  while (client.connected()) {
+    while (client.available()) {
+      char inchar = client.read();
+      //Serial.print(inchar);
+      freezeListener += inchar;
+      buildListener += inchar;
 
-    if (listener.indexOf("false") > 0) {
-         // Serial.print("False");
-         // Serial.println(listener.indexOf("false"));
-         returnVal = 0;
+      if (freezeListener.indexOf("false") > 0) {
+           // Serial.print("False");
+           // Serial.println(listener.indexOf("false"));
+           returnVal = 0;
 
-    } else if (listener.indexOf("true") > 0) {
-         // Serial.print("True");
-         // Serial.println(listener.indexOf("true"));
-         returnVal = 1;
+      } else if (freezeListener.indexOf("true") > 0) {
+           // Serial.print("True");
+           // Serial.println(listener.indexOf("true"));
+           returnVal = 1;
+      }
+      //kill the string if we didn't see anything goods
+      if (inchar == closeXml) {
+            //Serial.println(listener);
+            freezeListener.remove(0, freezeListener.length());
+      }
+      if (buildsFound < 5 && buildListener.indexOf("\"Successful\"") > 0) {
+          builds[buildsFound] = 1;
+          buildsFound++;
+          buildListener.remove(0, buildListener.indexOf("\"Successful\""));
+          Serial.println("Success");
+      }
+      if (buildsFound < 5 && buildListener.indexOf("\"Failed\"") > 0) {
+          builds[buildsFound] = 0;
+          buildsFound++;
+          buildListener.remove(0, buildListener.indexOf("\"Failed\""));
+          Serial.println("Failure");
+      }
+      noCharCount = 0;
+      if (buildsFound >= 5 && returnVal != -1) { //we are done
+        Serial.println("finished getting ALL");
+        client.stop();
+      }
     }
-    //kill the string if we didn't see anything goods
-    if (inchar == closeXml) {
-          //Serial.println(listener);
-          listener.remove(0, listener.length());
+    //break if we are stalled
+    delay(10);
+    noCharCount++;
+    if (noCharCount > 1000) {
+      Serial.println("Stalled");
+       client.stop();
     }
-
   }
   //call it now and later
   client.stop();

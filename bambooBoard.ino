@@ -68,12 +68,12 @@ IPAddress ip(192, 168, 0, 177);
 EthernetClient client;
 char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI"};
 const int projectCount = 3;
-const int boardRows = 5;
-const int boardColumns = 8;
+const int boardRows = 8;
+const int boardColumns = 5;
 const int UNSET = -1;
 const int SUCCESS = 1;
 const int FAILURE = 0;
-int buildResult[3][5] = {-1};
+int buildResult[8][5];
 
 int lastStatus[3];
 int status[3];
@@ -91,7 +91,7 @@ void setup() {
   //digitalWrite(4,HIGH);
 
   // Open serial communications and wait for port to open:
-  Serial.begin(57600);
+  Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   }
@@ -110,7 +110,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.04");
+  Serial.println("v.1.05");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -128,26 +128,33 @@ void loop()
 
   for (int i = 0; i < projectCount; i++) {
 
+    displayBuilds();
     Serial.print(String(i+1));
     Serial.print(" of ");
     Serial.print(projectCount);
     Serial.print(" ");
     Serial.print(projects[i]);
     Serial.print(" ");
-    status[i] = getStatus(projects[i]);
-    if (status[i] == 1) {
 
-      Serial.println("Enabled");
+    int builds[5] = {0,0,0,0,0};
+    status[i] = getStatus(projects[i], builds);
+
+    for (int b = 0; b < 5; b++) {
+      buildResult[2*i][b] = builds[b];
+      buildResult[2*i+1][b] = builds[b];
+
+    }
+
+    if (status[i] == 1) {
+      Serial.println(" Enabled");
       if (lastStatus[i] == 1) {
         // was hot and still hot
       } else if (lastStatus[i] == 0) {
         //project went thaw
         theaterChase(strip.Color(255, 0, 0), 50); // White
       }
-
     } else if (status[i] == 0) {
-
-      Serial.println("Disabled");
+      Serial.println(" Disabled");
       if (lastStatus[i] == 1) {
         //project frooze
         theaterChase(strip.Color(0, 0, 255), 50); // blue
@@ -156,29 +163,31 @@ void loop()
       }
     } else {
       if (lastStatus[i] == -1) {
-              Serial.print("Unknown");
+              Serial.print(" Unknown");
       } else if (lastStatus[i] == 1) {
-            Serial.print("Enabled");
+            Serial.print(" Enabled");
       } else {
-          Serial.print("Disabled");
+          Serial.print(" Disabled");
       }
-      Serial.println(" (Stale)");
+      Serial.println(" (Cached)");
     }
+
     if (status[i] != -1) { //only update if we got a valid status
       lastStatus[i] = status[i];
 
     }
+    delay(2000);
   }
   //turn off the dance lights
-  displayNormal();
-  Serial.print("Sleeping ");
-  for (int i = 0; i < 10; i++) { //sleep for next round
 
-    flickerPixels();
-    Serial.print(".");
-
-  }
-  Serial.println();
+//  Serial.print("Sleeping ");
+//  for (int i = 0; i < 10; i++) { //sleep for next round
+//    delay(1000);
+//    //flickerPixels();
+//    Serial.print(".");
+//
+//  }
+//  Serial.println();
 
 
   // if the server's disconnected, stop the client:
@@ -232,8 +241,43 @@ void flickerPixels() {
     }
 }
 
+void displayBuilds()
+{
+  uint32_t savedPixelColor = strip.Color(0,127,127);
+
+  for (int x = 0;  x < boardRows; x++) {
+    for (int y = 0; y < boardColumns; y++) {
+      if (buildResult[x][y] == 0) {
+        savedPixelColor = strip.Color(25,25,25);
+      } else if (buildResult[x][y] == -1) {
+        savedPixelColor = strip.Color(127,0,0);
+      } else {
+        savedPixelColor = strip.Color(0,127, 0);
+      }
+
+//      strip.show();
+//Serial.print("coloring x:");
+//Serial.print(String(x));
+//Serial.print(" y:");
+//Serial.print(String(y));
+//Serial.print(" as ");
+//Serial.print(String(translatePoint(x,y)));
+//Serial.println();
+
+      strip.setPixelColor(translatePoint(x,y), savedPixelColor);
+    }
+  }
+
+  strip.show();
+}
+
+int translatePoint(int x, int y) {
+  return y * boardRows + x  ;
+}
+
 void displayNormal()
 {
+
   for (int i = 0; i < PIXELS; i++) {
     strip.setPixelColor(i, 0);
   }
@@ -241,7 +285,7 @@ void displayNormal()
 }
 
 
-int getStatus(String project)
+int &getStatus(String project, int builds[5])
 {
   //listener.reserve(1024);
   int returnVal = -1;
@@ -270,7 +314,7 @@ int getStatus(String project)
   String buildListener;
 
   int buildsFound = 0;
-  int builds[5] = {-1};
+
    //this makes it freakin work
   char openXml = '<';
   char closeXml = '>';
@@ -301,13 +345,13 @@ int getStatus(String project)
           builds[buildsFound] = 1;
           buildsFound++;
           buildListener.remove(0, buildListener.indexOf("\"Successful\""));
-          Serial.println("Success");
+          Serial.print(" Success");
       }
       if (buildsFound < 5 && buildListener.indexOf("\"Failed\"") > 0) {
-          builds[buildsFound] = 0;
+          builds[buildsFound] = -1;
           buildsFound++;
           buildListener.remove(0, buildListener.indexOf("\"Failed\""));
-          Serial.println("Failure");
+          Serial.print(" Failure");
       }
       noCharCount = 0;
       if (buildsFound >= 5 && returnVal != -1) { //we are done
@@ -318,7 +362,7 @@ int getStatus(String project)
     //break if we are stalled
     delay(10);
     noCharCount++;
-    if (noCharCount > 1000) {
+    if (noCharCount > 600) {
       Serial.println("Stalled");
        client.stop();
     }
@@ -326,8 +370,8 @@ int getStatus(String project)
   //call it now and later
   client.stop();
 
-
   return returnVal;
+  //return builds;
 }
 
 //Theatre-style crawling lights.

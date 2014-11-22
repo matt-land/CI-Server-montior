@@ -73,6 +73,10 @@ const int boardColumns = 5;
 const int UNSET = -1;
 const int SUCCESS = 1;
 const int FAILURE = 0;
+const int buildsToScan = 3;
+
+const int FROZEN = 2;
+const int THAWED = 3;
 int buildResult[8][5];
 
 int lastStatus[3];
@@ -136,17 +140,25 @@ void loop()
     Serial.print(projects[i]);
     Serial.print(" ");
 
-    int builds[5] = {0,0,0,0,0};
+    int builds[buildsToScan] = {0,0,0};
     status[i] = getStatus(projects[i], builds);
 
+    //set first two on freeze thaw
+
+
+
     for (int b = 0; b < 5; b++) {
-      buildResult[2*i][b] = builds[b];
-      buildResult[2*i+1][b] = builds[b];
+      buildResult[2*i][b+2] = builds[b];
+      buildResult[2*i+1][b+2] = builds[b];
 
     }
 
     if (status[i] == 1) {
       Serial.println(" Enabled");
+      buildResult[2*i][0] = THAWED;
+      buildResult[2*i+1][0] = THAWED;
+      buildResult[2*i][1] = THAWED;
+      buildResult[2*i+1][1] = THAWED;
       if (lastStatus[i] == 1) {
         // was hot and still hot
       } else if (lastStatus[i] == 0) {
@@ -155,6 +167,10 @@ void loop()
       }
     } else if (status[i] == 0) {
       Serial.println(" Disabled");
+      buildResult[2*i][0] = FROZEN;
+      buildResult[2*i+1][0] = FROZEN;
+      buildResult[2*i][1] = FROZEN;
+      buildResult[2*i+1][1] = FROZEN;
       if (lastStatus[i] == 1) {
         //project frooze
         theaterChase(strip.Color(0, 0, 255), 50); // blue
@@ -251,6 +267,10 @@ void displayBuilds()
         savedPixelColor = strip.Color(25,25,25);
       } else if (buildResult[x][y] == -1) {
         savedPixelColor = strip.Color(127,0,0);
+      } else if (buildResult[x][y] == FROZEN) {
+        savedPixelColor = strip.Color(0,0,127);
+      } else if (buildResult[x][y] == THAWED) {
+        savedPixelColor = strip.Color(100,60,0);
       } else {
         savedPixelColor = strip.Color(0,127, 0);
       }
@@ -341,13 +361,13 @@ int &getStatus(String project, int builds[5])
             //Serial.println(listener);
             freezeListener.remove(0, freezeListener.length());
       }
-      if (buildsFound < 5 && buildListener.indexOf("\"Successful\"") > 0) {
+      if (buildsFound < buildsToScan && buildListener.indexOf("\"Successful\"") > 0) {
           builds[buildsFound] = 1;
           buildsFound++;
           buildListener.remove(0, buildListener.indexOf("\"Successful\""));
           Serial.print(" Success");
       }
-      if (buildsFound < 5 && buildListener.indexOf("\"Failed\"") > 0) {
+      if (buildsFound < buildsToScan && buildListener.indexOf("\"Failed\"") > 0) {
           builds[buildsFound] = -1;
           buildsFound++;
           buildListener.remove(0, buildListener.indexOf("\"Failed\""));

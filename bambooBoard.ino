@@ -70,13 +70,16 @@ char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI"};
 const int projectCount = 3;
 const int boardRows = 8;
 const int boardColumns = 5;
-const int UNSET = -1;
-const int SUCCESS = 1;
-const int FAILURE = 0;
+
 const int buildsToScan = 3;
 
+const int UNSET = 0;
+const int SUCCESS = 1;
+const int FAILURE = -1;
 const int FROZEN = 2;
 const int THAWED = 3;
+const int ENABLED = 1;
+const int DISABLED = -1;
 int buildResult[8][5];
 
 int lastStatus[3];
@@ -87,8 +90,8 @@ int status[3];
 void setup() {
 
   for (int i = 0; i < projectCount; i++) {
-    lastStatus[i] = -1;
-    status[i] = -1;
+    lastStatus[i] = UNSET;
+    status[i] = UNSET;
   }
   //turn off sd card
   //pinMode(4,OUTPUT);
@@ -114,7 +117,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.05");
+  Serial.println("v.1.07");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -146,41 +149,40 @@ void loop()
     //set first two on freeze thaw
 
 
-
-    for (int b = 0; b < 5; b++) {
+    //se the last 3 project status
+    for (int b = 0; b < buildsToScan; b++) {
       buildResult[2*i][b+2] = builds[b];
-      buildResult[2*i+1][b+2] = builds[b];
-
+      buildResult[(2*i)+1][b+2] = builds[b];
     }
 
-    if (status[i] == 1) {
+    if (status[i] == ENABLED) {
       Serial.println(" Enabled");
       buildResult[2*i][0] = THAWED;
-      buildResult[2*i+1][0] = THAWED;
+      buildResult[(2*i)+1][0] = THAWED;
       buildResult[2*i][1] = THAWED;
-      buildResult[2*i+1][1] = THAWED;
-      if (lastStatus[i] == 1) {
+      buildResult[(2*i)+1][1] = THAWED;
+      if (lastStatus[i] == ENABLED) {
         // was hot and still hot
-      } else if (lastStatus[i] == 0) {
+      } else if (lastStatus[i] == DISABLED) {
         //project went thaw
         theaterChase(strip.Color(255, 0, 0), 50); // White
       }
-    } else if (status[i] == 0) {
+    } else if (status[i] == DISABLED) {
       Serial.println(" Disabled");
       buildResult[2*i][0] = FROZEN;
       buildResult[2*i+1][0] = FROZEN;
       buildResult[2*i][1] = FROZEN;
       buildResult[2*i+1][1] = FROZEN;
-      if (lastStatus[i] == 1) {
+      if (lastStatus[i] == ENABLED) {
         //project frooze
         theaterChase(strip.Color(0, 0, 255), 50); // blue
-      } else if (lastStatus[i] == 0) {
+      } else if (lastStatus[i] == DISABLED) {
         //was frooze stayed frooze
       }
     } else {
-      if (lastStatus[i] == -1) {
+      if (lastStatus[i] == UNSET) {
               Serial.print(" Unknown");
-      } else if (lastStatus[i] == 1) {
+      } else if (lastStatus[i] == ENABLED) {
             Serial.print(" Enabled");
       } else {
           Serial.print(" Disabled");
@@ -188,11 +190,13 @@ void loop()
       Serial.println(" (Cached)");
     }
 
-    if (status[i] != -1) { //only update if we got a valid status
+    if (status[i] != UNSET) { //only update if we got a valid status
       lastStatus[i] = status[i];
 
     }
-    delay(2000);
+    if (status[i] == lastStatus[i]) { //no change
+      delay(2000);
+    }
   }
   //turn off the dance lights
 
@@ -263,16 +267,16 @@ void displayBuilds()
 
   for (int x = 0;  x < boardRows; x++) {
     for (int y = 0; y < boardColumns; y++) {
-      if (buildResult[x][y] == 0) {
+      if (buildResult[x][y] == UNSET) {
         savedPixelColor = strip.Color(25,25,25);
-      } else if (buildResult[x][y] == -1) {
+      } else if (buildResult[x][y] == FAILURE) {
         savedPixelColor = strip.Color(127,0,0);
+      } else if (buildResult[x][y] == SUCCESS) {
+        savedPixelColor = strip.Color(0,127, 0);
       } else if (buildResult[x][y] == FROZEN) {
         savedPixelColor = strip.Color(0,0,127);
       } else if (buildResult[x][y] == THAWED) {
-        savedPixelColor = strip.Color(100,60,0);
-      } else {
-        savedPixelColor = strip.Color(0,127, 0);
+        savedPixelColor = strip.Color(100,60,6);
       }
 
 //      strip.show();
@@ -297,7 +301,6 @@ int translatePoint(int x, int y) {
 
 void displayNormal()
 {
-
   for (int i = 0; i < PIXELS; i++) {
     strip.setPixelColor(i, 0);
   }
@@ -308,7 +311,7 @@ void displayNormal()
 int &getStatus(String project, int builds[5])
 {
   //listener.reserve(1024);
-  int returnVal = -1;
+  int returnVal = UNSET;
 
   client.stop();
 
@@ -349,12 +352,12 @@ int &getStatus(String project, int builds[5])
       if (freezeListener.indexOf("false") > 0) {
            // Serial.print("False");
            // Serial.println(listener.indexOf("false"));
-           returnVal = 0;
+           returnVal = DISABLED;
 
       } else if (freezeListener.indexOf("true") > 0) {
            // Serial.print("True");
            // Serial.println(listener.indexOf("true"));
-           returnVal = 1;
+           returnVal = ENABLED;
       }
       //kill the string if we didn't see anything goods
       if (inchar == closeXml) {
@@ -374,8 +377,8 @@ int &getStatus(String project, int builds[5])
           Serial.print(" Failure");
       }
       noCharCount = 0;
-      if (buildsFound >= 5 && returnVal != -1) { //we are done
-        Serial.println("finished getting ALL");
+      if (buildsFound >= 5 && returnVal != UNSET) { //we are done
+        Serial.println(" finished getting ALL");
         client.stop();
       }
     }
@@ -383,7 +386,7 @@ int &getStatus(String project, int builds[5])
     delay(10);
     noCharCount++;
     if (noCharCount > 600) {
-      Serial.println("Stalled");
+      Serial.println(" Stalled");
        client.stop();
     }
   }
@@ -396,7 +399,7 @@ int &getStatus(String project, int builds[5])
 
 //Theatre-style crawling lights.
 void theaterChase(uint32_t c, uint8_t wait) {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
+  for (int j=0; j<20; j++) {  //do 10 cycles of chasing
     for (int q=0; q < 3; q++) {
       for (int i=0; i < strip.numPixels(); i=i+3) {
         strip.setPixelColor(i+q, c);    //turn every third pixel on

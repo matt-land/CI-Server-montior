@@ -66,8 +66,8 @@ IPAddress ip(192, 168, 0, 177);
 // with the IP address and port of the server
 // that you want to connect to (port 80 is default for HTTP):
 EthernetClient client;
-char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI"};
-const int projectCount = 3;
+char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI", "API-CI"};
+const int projectCount = 4;
 const int boardRows = 8;
 const int boardColumns = 5;
 
@@ -117,7 +117,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.07");
+  Serial.println("v.1.08");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -385,7 +385,7 @@ int &getStatus(String project, int builds[5])
     //break if we are stalled
     delay(10);
     noCharCount++;
-    if (noCharCount > 600) {
+    if (noCharCount > 1200) {
       Serial.println(" Stalled");
        client.stop();
     }

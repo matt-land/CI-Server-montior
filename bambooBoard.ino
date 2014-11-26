@@ -117,7 +117,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.08");
+  Serial.println("v.1.09");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -324,6 +324,8 @@ int &getStatus(String project, int builds[5])
       client.println(url);
       client.println("Host: bamboo.sparefoot.com");
       client.println("User-Agent: arduino-ethernet");
+      //client.println("Content-Type: application/json");
+      client.println("Accept: application/json");
       client.println("Connection: close");
       client.println();
 
@@ -332,22 +334,28 @@ int &getStatus(String project, int builds[5])
       Serial.println("connection failed");
       return returnVal;
   }
+   //this makes it freakin work
   delay(100);
   String freezeListener;
   String buildListener;
 
+
   int buildsFound = 0;
 
-   //this makes it freakin work
-  char openXml = '<';
-  char closeXml = '>';
+  char openXml = '{';
+  char closeXml = '}';
   int noCharCount = 0;
+  int counter = 0;
   while (client.connected()) {
     while (client.available()) {
       char inchar = client.read();
       //Serial.print(inchar);
-      freezeListener += inchar;
-      buildListener += inchar;
+      //see if frozen
+      if (returnVal == UNSET) {
+        freezeListener += inchar;
+      } else {
+        buildListener += inchar;
+      }
 
       if (freezeListener.indexOf("false") > 0) {
            // Serial.print("False");
@@ -359,25 +367,30 @@ int &getStatus(String project, int builds[5])
            // Serial.println(listener.indexOf("true"));
            returnVal = ENABLED;
       }
-      //kill the string if we didn't see anything goods
-      if (inchar == closeXml) {
-            //Serial.println(listener);
-            freezeListener.remove(0, freezeListener.length());
+      //kill the string after we ind some stuff
+      if (returnVal == closeXml) {
+          //Serial.println(listener);
+          freezeListener.remove(0, freezeListener.length());
       }
-      if (buildsFound < buildsToScan && buildListener.indexOf("\"Successful\"") > 0) {
-          builds[buildsFound] = 1;
+      //kill the string if we didn't see anything goods
+      if (returnVal != UNSET) {
+        //Serial.println(listener);
+        freezeListener.remove(0, freezeListener.length());
+      }
+      if (buildsFound < buildsToScan && buildListener.indexOf("\"state\":\"Successful\"") > 0) {
+          builds[buildsFound] = SUCCESS;
           buildsFound++;
-          buildListener.remove(0, buildListener.indexOf("\"Successful\""));
+          buildListener.remove(0, buildListener.length());
           Serial.print(" Success");
       }
-      if (buildsFound < buildsToScan && buildListener.indexOf("\"Failed\"") > 0) {
-          builds[buildsFound] = -1;
+      if (buildsFound < buildsToScan && buildListener.indexOf("\"state\":\"Failed\"") > 0) {
+          builds[buildsFound] = FAILURE;
           buildsFound++;
-          buildListener.remove(0, buildListener.indexOf("\"Failed\""));
+          buildListener.remove(0, buildListener.length());
           Serial.print(" Failure");
       }
       noCharCount = 0;
-      if (buildsFound >= 5 && returnVal != UNSET) { //we are done
+      if (buildsFound >= buildsToScan && returnVal != UNSET) { //we are done
         Serial.println(" finished getting ALL");
         client.stop();
       }

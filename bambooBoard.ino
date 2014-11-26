@@ -68,8 +68,8 @@ IPAddress ip(192, 168, 0, 177);
 EthernetClient client;
 char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI", "API-STG"};
 const int projectCount = 4;
-int lastStatus[4] = {0,0,0,0};
-int status[4] = { 0,0,0,0};
+int lastStatus[4];
+int status[4];
 
 
 const int buildsToScan = 3;
@@ -100,9 +100,6 @@ void setup() {
     lastStatus[i] = UNSET;
     status[i] = UNSET;
   }
-  //turn off sd card
-  //pinMode(4,OUTPUT);
-  //digitalWrite(4,HIGH);
 
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
@@ -110,7 +107,7 @@ void setup() {
   //  ; // wait for serial port to connect. Needed for Leonardo only
   //}
 
-   // Initialize all pixels to 'off'
+  // Initialize all pixels to 'off'
   strip.begin();
   strip.show();
 
@@ -122,7 +119,7 @@ void setup() {
     Ethernet.begin(mac, ip);
   }
   // give the Ethernet shield a second to initialize:
-  delay(1000);
+  delay(250);
   Serial.println("connecting...");
   Serial.println("v.1.12");
   // if you get a connection, report back via serial:
@@ -133,7 +130,6 @@ void setup() {
 
 void loop()
 {
-
   for (int i = 0; i < projectCount; i++) {
 
     Serial.print(String(i+1));
@@ -168,30 +164,34 @@ void loop()
           buildResult[(2*i)+1][b+2] = builds[b];
         }
     }
-
+    // did not update project successfully
+    //so continue to next
     if (status[i] == UNSET) {
         Serial.println(" (Cached)");
         continue;
     }
-    //run the dance of freeze/thaw, if we updated successfully
 
     String message = (status[i]) ? " Enabled" : " Disabled";
     Serial.println(message);
 
+    /*
+     * run the dance of freeze/thaw
+     */
+
+    //project went thaw
     if (lastStatus[i] == DISABLED && status[i] == ENABLED) {
-      //project went thaw
       theaterChase(strip.Color(255, 0, 0), 50); // red
     }
+    //project frozen
     if (lastStatus[i] == ENABLED && status[i] == DISABLED) {
-      //project frooze
       theaterChase(strip.Color(0, 0, 255), 50); // blue
     }
-    lastStatus[i] = status[i]; //set for later
+    //update last status cache
+    lastStatus[i] = status[i];
 
-    //now display the walker on who ever just updated
+    //Display the walker on the project that was just updated
     buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
     buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-    //buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
     buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
 
     for (int tdelay = 0; tdelay < 16; tdelay++) {

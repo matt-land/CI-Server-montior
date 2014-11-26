@@ -80,6 +80,7 @@ const int FAILURE = -1;
 const int FROZEN = 2;
 const int THAWED = 3;
 const int SCANNED = 4;
+const int SCANNING = 5;
 const int ENABLED = 1;
 const int DISABLED = -1;
 const char OPEN_JSON = '{';
@@ -141,6 +142,13 @@ void loop()
 
   for (int i = 0; i < projectCount; i++) {
 
+    //display who we are polling
+    buildResult[2*i][0] = SCANNING;
+    //buildResult[(2*i)+1][0] = SCANNING;
+    //buildResult[2*i][1] = SCANNING;
+    //buildResult[(2*i)+1][1] = SCANNING;
+    displayBuilds();
+
     Serial.print(String(i+1));
     Serial.print(" of ");
     Serial.print(projectCount);
@@ -198,7 +206,7 @@ void loop()
     }
     //now display
     if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
-        for (int tdelay = 0; tdelay < 6; tdelay++) {
+        for (int tdelay = 0; tdelay < 16; tdelay++) {
             if (tdelay % 2) {
                 buildResult[2*i][0] = SCANNED;
                 buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
@@ -211,7 +219,7 @@ void loop()
                 buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
             }
             displayBuilds();
-            delay(333);
+            delay(100);
         }
         buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
         buildResult[(2*i)+1][1] =  (lastStatus[i] > 0) ? THAWED : FROZEN;
@@ -296,9 +304,11 @@ void displayBuilds()
       } else if (buildResult[x][y] == FROZEN) {
         savedPixelColor = strip.Color(0,0,127);
       } else if (buildResult[x][y] == THAWED) {
-        savedPixelColor = strip.Color(100,60,6);
+        savedPixelColor = strip.Color(100,30,6);
       } else if (buildResult[x][y] == SCANNED) {
-        savedPixelColor = strip.Color(127,127,127);
+        savedPixelColor = strip.Color(100,100,100);
+      } else if (buildResult[x][y] == SCANNING) {
+        savedPixelColor = 0;
       }
 
 //      strip.show();
@@ -363,7 +373,7 @@ int getStatus(String project, int builds[5])
   int buildsFound = 0;
   int noCharCount = 0;
   bool pastHeaders = false;
-  int counter = 0;
+
   while (client.connected()) {
     while (client.available()) {
       char inchar = client.read();

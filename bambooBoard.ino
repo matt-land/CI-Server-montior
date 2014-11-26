@@ -207,16 +207,21 @@ void loop()
     //now display
     if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
         for (int tdelay = 0; tdelay < 16; tdelay++) {
-            if (tdelay % 2) {
+            buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            if (tdelay % 4 == 0) {
                 buildResult[2*i][0] = SCANNED;
-                buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-                buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-                buildResult[(2*i)+1][1] = SCANNED;
-            } else {
-                buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            }
+            if (tdelay % 4 == 1) {
                 buildResult[(2*i)+1][0] = SCANNED;
+            }
+            if (tdelay % 4 == 2) {
                 buildResult[2*i][1] = SCANNED;
-                buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            }
+            if (tdelay % 4 == 1) {
+                buildResult[(2*i)+1][1] = SCANNED;
             }
             displayBuilds();
             delay(100);
@@ -304,11 +309,11 @@ void displayBuilds()
       } else if (buildResult[x][y] == FROZEN) {
         savedPixelColor = strip.Color(0,0,127);
       } else if (buildResult[x][y] == THAWED) {
-        savedPixelColor = strip.Color(100,30,6);
+        savedPixelColor = strip.Color(90,35,6);
       } else if (buildResult[x][y] == SCANNED) {
         savedPixelColor = strip.Color(100,100,100);
       } else if (buildResult[x][y] == SCANNING) {
-        savedPixelColor = 0;
+        savedPixelColor = strip.Color(50,50,50);
       }
 
 //      strip.show();

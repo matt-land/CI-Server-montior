@@ -79,6 +79,7 @@ const int SUCCESS = 1;
 const int FAILURE = -1;
 const int FROZEN = 2;
 const int THAWED = 3;
+const int SCANNED = 4;
 const int ENABLED = 1;
 const int DISABLED = -1;
 const char OPEN_JSON = '{';
@@ -122,7 +123,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.09");
+  Serial.println("v.1.10");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -140,10 +141,6 @@ void loop()
 
   for (int i = 0; i < projectCount; i++) {
 
-    displayBuilds();
-    if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
-          delay(2000);
-    }
     Serial.print(String(i+1));
     Serial.print(" of ");
     Serial.print(projectCount);
@@ -198,6 +195,27 @@ void loop()
           Serial.print(" Disabled");
         }
         Serial.println(" (Cached)");
+    }
+    //now display
+    if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
+        for (int tdelay = 0; tdelay < 6; tdelay++) {
+            if (tdelay % 2) {
+                buildResult[2*i][0] = SCANNED;
+                buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+                buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+                buildResult[(2*i)+1][1] = SCANNED;
+            } else {
+                buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+                buildResult[(2*i)+1][0] = SCANNED;
+                buildResult[2*i][1] = SCANNED;
+                buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            }
+            displayBuilds();
+            delay(333);
+        }
+        buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+        buildResult[(2*i)+1][1] =  (lastStatus[i] > 0) ? THAWED : FROZEN;
+        displayBuilds();
     }
   }
   //turn off the dance lights
@@ -279,6 +297,8 @@ void displayBuilds()
         savedPixelColor = strip.Color(0,0,127);
       } else if (buildResult[x][y] == THAWED) {
         savedPixelColor = strip.Color(100,60,6);
+      } else if (buildResult[x][y] == SCANNED) {
+        savedPixelColor = strip.Color(127,127,127);
       }
 
 //      strip.show();

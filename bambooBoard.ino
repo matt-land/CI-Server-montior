@@ -124,7 +124,7 @@ void setup() {
   // give the Ethernet shield a second to initialize:
   delay(1000);
   Serial.println("connecting...");
-  Serial.println("v.1.10");
+  Serial.println("v.1.12");
   // if you get a connection, report back via serial:
 
   //init the board
@@ -133,21 +133,8 @@ void setup() {
 
 void loop()
 {
-  // if there are incoming bytes available
-  // from the server, read them and print them:
-
-
-  //bool builds[6];
-  //bool status;
 
   for (int i = 0; i < projectCount; i++) {
-
-    //display who we are polling
-    buildResult[2*i][0] = SCANNING;
-    //buildResult[(2*i)+1][0] = SCANNING;
-    //buildResult[2*i][1] = SCANNING;
-    //buildResult[(2*i)+1][1] = SCANNING;
-    displayBuilds();
 
     Serial.print(String(i+1));
     Serial.print(" of ");
@@ -156,81 +143,88 @@ void loop()
     Serial.print(projects[i]);
     Serial.print(" ");
 
+    //turn on polling pixel
+    //display who we are polling
+    int restore = buildResult[2*i][0];
+    buildResult[2*i][0] = SCANNING;
+    displayBuilds();
+
     int builds[buildsToScan] = {0,0,0};
     status[i] = getStatus(projects[i], builds);
 
+    //turn off the polling pixel
+    buildResult[2*i][0] = restore;
+    displayBuilds();
     //set first two on freeze thaw
 
 
-    //se the last 3 project status
-    for (int b = 0; b < buildsToScan; b++) {
-      buildResult[2*i][b+2] = builds[b];
-      buildResult[(2*i)+1][b+2] = builds[b];
+    //set the last 3 project builds pixels, but only if we updated successfully
+    if (status[i] == ENABLED || status[i] == DISABLED) {
+        for (int b = 0; b < buildsToScan; b++) {
+          if (builds[b] == UNSET) {
+            break; //out of data, incomplete scan
+          }
+          buildResult[2*i][b+2] = builds[b];
+          buildResult[(2*i)+1][b+2] = builds[b];
+        }
     }
 
-    if (status[i] == ENABLED) {
-      Serial.println(" Enabled");
-      buildResult[2*i][0] = THAWED;
-      buildResult[(2*i)+1][0] = THAWED;
-      buildResult[2*i][1] = THAWED;
-      buildResult[(2*i)+1][1] = THAWED;
-      if (lastStatus[i] == DISABLED) {
-        //project went thaw
-        theaterChase(strip.Color(255, 0, 0), 50); // red
-      }
-      lastStatus[i] = ENABLED;
-    }
-    if (status[i] == DISABLED) {
-      Serial.println(" Disabled");
-      buildResult[2*i][0] = FROZEN;
-      buildResult[2*i+1][0] = FROZEN;
-      buildResult[2*i][1] = FROZEN;
-      buildResult[2*i+1][1] = FROZEN;
-      if (lastStatus[i] == ENABLED) {
-
-        //project frooze
-        theaterChase(strip.Color(0, 0, 255), 50); // blue
-      }
-      lastStatus[i] = DISABLED;
-
-    }
     if (status[i] == UNSET) {
-        if (lastStatus[i] == UNSET) {
-          Serial.print(" Unknown");
-        } else if (lastStatus[i] == ENABLED) {
-          Serial.print(" Enabled");
-        } else if (lastStatus[i] == ENABLED) {
-          Serial.print(" Disabled");
-        }
         Serial.println(" (Cached)");
+        continue;
     }
-    //now display
-    if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
-        for (int tdelay = 0; tdelay < 16; tdelay++) {
-            buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-            buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+    //run the dance of freeze/thaw, if we updated successfully
+
+    String message = (status[i]) ? " Enabled" : " Disabled";
+    Serial.println(message);
+
+    if (lastStatus[i] == DISABLED && status[i] == ENABLED) {
+      //project went thaw
+      theaterChase(strip.Color(255, 0, 0), 50); // red
+    }
+    if (lastStatus[i] == ENABLED && status[i] == DISABLED) {
+      //project frooze
+      theaterChase(strip.Color(0, 0, 255), 50); // blue
+    }
+    lastStatus[i] = status[i]; //set for later
+
+    //now display the walker on who ever just updated
+    buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+    buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+    //buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+    buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+
+    for (int tdelay = 0; tdelay < 16; tdelay++) {
+        switch (tdelay % 4) {
+          case 0:
             buildResult[2*i][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[2*i][0] = SCANNED;
+            break;
+          case 1:
+            buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[(2*i)+1][0] = SCANNED;
+            break;
+          case 2:
+            buildResult[(2*i)+1][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
+            buildResult[(2*i)+1][1] = SCANNED;
+            break;
+          case 3:
             buildResult[(2*i)+1][1] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-            if (tdelay % 4 == 0) {
-                buildResult[2*i][0] = SCANNED;
-            }
-            if (tdelay % 4 == 1) {
-                buildResult[(2*i)+1][0] = SCANNED;
-            }
-            if (tdelay % 4 == 2) {
-                buildResult[2*i][1] = SCANNED;
-            }
-            if (tdelay % 4 == 1) {
-                buildResult[(2*i)+1][1] = SCANNED;
-            }
-            displayBuilds();
-            delay(100);
+            buildResult[2*i][1] = SCANNED;
+            break;
         }
-        buildResult[2*i][0] = (lastStatus[i] > 0) ? THAWED : FROZEN;
-        buildResult[(2*i)+1][1] =  (lastStatus[i] > 0) ? THAWED : FROZEN;
         displayBuilds();
+        delay(75);
     }
-  }
+
+    //turn the last pixel back to normal
+    buildResult[2*i][1] =  (lastStatus[i] > 0) ? THAWED : FROZEN;
+    displayBuilds();
+}
+
+
+
+
   //turn off the dance lights
 
 //  Serial.print("Sleeping ");
@@ -249,50 +243,50 @@ void loop()
 /**
 slee function
 **/
-void flickerPixels() {
-    int totalLitPixels = 5;
-    int pixel[5] = {-1};
-    for (int i = 0; i < totalLitPixels; i++) {
-      int newPixel = rand() % strip.numPixels();
-      bool collision = false;
-      for (int j = 0; j < i+1; j++) {
-        if (pixel[j] == newPixel) { //don't add twice
-          collision = true;
-        }
-      }
-      if (collision == false) {
-        pixel[i] = newPixel;
-      }
-
-    }
-
-    uint32_t savedPixelColor[totalLitPixels];
-    for (int i = 0; i < 4;  i++) { //cycles
-      for (int j = 0; j < totalLitPixels;  j++) {
-        if (pixel[j] != -1) {
-            savedPixelColor[j] = strip.getPixelColor(pixel[j]);
-            strip.setPixelColor(pixel[j], strip.Color(rand() % 127, rand() % 127, rand() % 127));
-        }
-      }
-      strip.show();
-      delay(75);
-      for (int j = 0; j < totalLitPixels;  j++) {
-        if (pixel[j] != -1) {
-          strip.setPixelColor(pixel[j], 0);
-        }
-      }
-      strip.show();
-      delay(75);
-
-      for (int j = 0; j < totalLitPixels;  j++) {
-        if (pixel[j] != -1) {
-          strip.setPixelColor(pixel[j], savedPixelColor[j]); //set color back
-        }
-      }
-      strip.show();
-
-    }
-}
+//void flickerPixels() {
+//    int totalLitPixels = 5;
+//    int pixel[5] = {-1};
+//    for (int i = 0; i < totalLitPixels; i++) {
+//      int newPixel = rand() % strip.numPixels();
+//      bool collision = false;
+//      for (int j = 0; j < i+1; j++) {
+//        if (pixel[j] == newPixel) { //don't add twice
+//          collision = true;
+//        }
+//      }
+//      if (collision == false) {
+//        pixel[i] = newPixel;
+//      }
+//
+//    }
+//
+//    uint32_t savedPixelColor[totalLitPixels];
+//    for (int i = 0; i < 4;  i++) { //cycles
+//      for (int j = 0; j < totalLitPixels;  j++) {
+//        if (pixel[j] != -1) {
+//            savedPixelColor[j] = strip.getPixelColor(pixel[j]);
+//            strip.setPixelColor(pixel[j], strip.Color(rand() % 127, rand() % 127, rand() % 127));
+//        }
+//      }
+//      strip.show();
+//      delay(75);
+//      for (int j = 0; j < totalLitPixels;  j++) {
+//        if (pixel[j] != -1) {
+//          strip.setPixelColor(pixel[j], 0);
+//        }
+//      }
+//      strip.show();
+//      delay(75);
+//
+//      for (int j = 0; j < totalLitPixels;  j++) {
+//        if (pixel[j] != -1) {
+//          strip.setPixelColor(pixel[j], savedPixelColor[j]); //set color back
+//        }
+//      }
+//      strip.show();
+//
+//    }
+//}
 
 void displayBuilds()
 {
@@ -300,30 +294,30 @@ void displayBuilds()
 
   for (int x = 0;  x < boardRows; x++) {
     for (int y = 0; y < boardColumns; y++) {
-      if (buildResult[x][y] == UNSET) {
-        savedPixelColor = strip.Color(25,25,25);
-      } else if (buildResult[x][y] == FAILURE) {
-        savedPixelColor = strip.Color(127,0,0);
-      } else if (buildResult[x][y] == SUCCESS) {
-        savedPixelColor = strip.Color(0,127, 0);
-      } else if (buildResult[x][y] == FROZEN) {
-        savedPixelColor = strip.Color(0,0,127);
-      } else if (buildResult[x][y] == THAWED) {
-        savedPixelColor = strip.Color(90,35,6);
-      } else if (buildResult[x][y] == SCANNED) {
-        savedPixelColor = strip.Color(100,100,100);
-      } else if (buildResult[x][y] == SCANNING) {
-        savedPixelColor = strip.Color(50,50,50);
+      switch (buildResult[x][y]) {
+        case FAILURE:
+          savedPixelColor = strip.Color(90,0,0);
+          break;
+        case SUCCESS:
+          savedPixelColor = strip.Color(0,90, 0);
+          break;
+        case FROZEN:
+          savedPixelColor = strip.Color(0,0,90);
+          break;
+        case THAWED:
+          savedPixelColor = strip.Color(90,35,6);
+          break;
+        case SCANNED:
+          savedPixelColor = strip.Color(90,90,90);
+          break;
+        case SCANNING:
+          savedPixelColor = strip.Color(50,50,50);
+          break;
+        case UNSET:
+        default:
+          savedPixelColor = strip.Color(15,15,15);
+          break;
       }
-
-//      strip.show();
-//Serial.print("coloring x:");
-//Serial.print(String(x));
-//Serial.print(" y:");
-//Serial.print(String(y));
-//Serial.print(" as ");
-//Serial.print(String(translatePoint(x,y)));
-//Serial.println();
 
       strip.setPixelColor(translatePoint(x,y), savedPixelColor);
     }
@@ -372,7 +366,7 @@ int getStatus(String project, int builds[5])
       return returnVal;
   }
    //this makes it freakin work
-  delay(100);
+  //delay(100);
   String freezeListener;
 
   int buildsFound = 0;
@@ -393,29 +387,21 @@ int getStatus(String project, int builds[5])
 
       freezeListener += inchar;
 
+      //kill the string after we ind some stuff
+      if (inchar == CLOSE_JSON) {
+        freezeListener.remove(0, freezeListener.length());
+      }
+
       if (returnVal == UNSET && freezeListener.indexOf("false") > 0) {
-           // Serial.print("False");
-           // Serial.println(listener.indexOf("false"));
            returnVal = DISABLED;
            freezeListener.remove(0, freezeListener.length());
 
       } else if (returnVal == UNSET && freezeListener.indexOf("true") > 0) {
-           // Serial.print("True");
-           // Serial.println(listener.indexOf("true"));
            returnVal = ENABLED;
            freezeListener.remove(0, freezeListener.length());
       }
-      //kill the string after we ind some stuff
-//      if (returnVal == CLOSE_JSON) {
-//        freezeListener.remove(0, freezeListener.length());
-//          //Serial.println(listener);
-//          );
-//      }
-      //kill the string if we didn't see anything goods
-//      if (returnVal != UNSET) {
-//        //Serial.println(listener);
-//        freezeListener.remove(0, freezeListener.length());
-//      }
+
+
       if (returnVal != UNSET) {
           if (buildsFound < buildsToScan && freezeListener.indexOf("\"state\":\"Successful\"") > 0) {
               builds[buildsFound] = SUCCESS;
@@ -439,9 +425,10 @@ int getStatus(String project, int builds[5])
     //break if we are stalled
     delay(10);
     noCharCount++;
-    if (noCharCount > 1200) {
-      Serial.println(" Stalled");
-       client.stop();
+    if (noCharCount > 600) {
+      //Serial.println(freezeListener);
+      //Serial.println(" Stalled");
+      client.stop();
     }
   }
   //call it now and later

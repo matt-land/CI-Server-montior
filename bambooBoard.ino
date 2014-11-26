@@ -80,6 +80,8 @@ const int FROZEN = 2;
 const int THAWED = 3;
 const int ENABLED = 1;
 const int DISABLED = -1;
+const char OPEN_JSON = '{';
+const char CLOSE_JSON = '}';
 int buildResult[8][5];
 
 int lastStatus[3];
@@ -308,7 +310,7 @@ void displayNormal()
 }
 
 
-int &getStatus(String project, int builds[5])
+int getStatus(String project, int builds[5])
 {
   //listener.reserve(1024);
   int returnVal = UNSET;
@@ -337,63 +339,67 @@ int &getStatus(String project, int builds[5])
    //this makes it freakin work
   delay(100);
   String freezeListener;
-  String buildListener;
-
 
   int buildsFound = 0;
-
-  char openXml = '{';
-  char closeXml = '}';
   int noCharCount = 0;
+  bool pastHeaders = false;
   int counter = 0;
   while (client.connected()) {
     while (client.available()) {
       char inchar = client.read();
       //Serial.print(inchar);
       //see if frozen
-      if (returnVal == UNSET) {
-        freezeListener += inchar;
-      } else {
-        buildListener += inchar;
+      if (! pastHeaders) { //zip past headers
+        if (inchar == OPEN_JSON) {
+            pastHeaders = true;
+        }
+        continue;
       }
 
-      if (freezeListener.indexOf("false") > 0) {
+      freezeListener += inchar;
+
+      if (returnVal == UNSET && freezeListener.indexOf("false") > 0) {
            // Serial.print("False");
            // Serial.println(listener.indexOf("false"));
            returnVal = DISABLED;
+           freezeListener.remove(0, freezeListener.length());
 
-      } else if (freezeListener.indexOf("true") > 0) {
+      } else if (returnVal == UNSET && freezeListener.indexOf("true") > 0) {
            // Serial.print("True");
            // Serial.println(listener.indexOf("true"));
            returnVal = ENABLED;
+           freezeListener.remove(0, freezeListener.length());
       }
       //kill the string after we ind some stuff
-      if (returnVal == closeXml) {
-          //Serial.println(listener);
-          freezeListener.remove(0, freezeListener.length());
-      }
+//      if (returnVal == CLOSE_JSON) {
+//        freezeListener.remove(0, freezeListener.length());
+//          //Serial.println(listener);
+//          );
+//      }
       //kill the string if we didn't see anything goods
+//      if (returnVal != UNSET) {
+//        //Serial.println(listener);
+//        freezeListener.remove(0, freezeListener.length());
+//      }
       if (returnVal != UNSET) {
-        //Serial.println(listener);
-        freezeListener.remove(0, freezeListener.length());
+          if (buildsFound < buildsToScan && freezeListener.indexOf("\"state\":\"Successful\"") > 0) {
+              builds[buildsFound] = SUCCESS;
+              buildsFound++;
+              freezeListener.remove(0, freezeListener.length());
+              Serial.print(" Success");
+          }
+          if (buildsFound < buildsToScan && freezeListener.indexOf("\"state\":\"Failed\"") > 0) {
+              builds[buildsFound] = FAILURE;
+              buildsFound++;
+              freezeListener.remove(0, freezeListener.length());
+              Serial.print(" Failure");
+          }
       }
-      if (buildsFound < buildsToScan && buildListener.indexOf("\"state\":\"Successful\"") > 0) {
-          builds[buildsFound] = SUCCESS;
-          buildsFound++;
-          buildListener.remove(0, buildListener.length());
-          Serial.print(" Success");
-      }
-      if (buildsFound < buildsToScan && buildListener.indexOf("\"state\":\"Failed\"") > 0) {
-          builds[buildsFound] = FAILURE;
-          buildsFound++;
-          buildListener.remove(0, buildListener.length());
-          Serial.print(" Failure");
-      }
-      noCharCount = 0;
       if (buildsFound >= buildsToScan && returnVal != UNSET) { //we are done
-        Serial.println(" finished getting ALL");
+        Serial.println(" Finish");
         client.stop();
       }
+      noCharCount = 0;
     }
     //break if we are stalled
     delay(10);

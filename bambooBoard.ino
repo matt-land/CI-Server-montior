@@ -66,10 +66,11 @@ IPAddress ip(192, 168, 0, 177);
 // with the IP address and port of the server
 // that you want to connect to (port 80 is default for HTTP):
 EthernetClient client;
-char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI", "API-CI"};
+char* projects[] = {"MYFOOT-CI", "GENESIS-CI", "PITA-CI", "API-STG"};
 const int projectCount = 4;
-const int boardRows = 8;
-const int boardColumns = 5;
+int lastStatus[4] = {0,0,0,0};
+int status[4] = { 0,0,0,0};
+
 
 const int buildsToScan = 3;
 
@@ -82,10 +83,12 @@ const int ENABLED = 1;
 const int DISABLED = -1;
 const char OPEN_JSON = '{';
 const char CLOSE_JSON = '}';
+
+const int boardRows = 8;
+const int boardColumns = 5;
 int buildResult[8][5];
 
-int lastStatus[3];
-int status[3];
+
 
 
 
@@ -138,6 +141,9 @@ void loop()
   for (int i = 0; i < projectCount; i++) {
 
     displayBuilds();
+    if (lastStatus[i] != UNSET && status[i] == lastStatus[i]) { //no change
+          delay(2000);
+    }
     Serial.print(String(i+1));
     Serial.print(" of ");
     Serial.print(projectCount);
@@ -163,41 +169,35 @@ void loop()
       buildResult[(2*i)+1][0] = THAWED;
       buildResult[2*i][1] = THAWED;
       buildResult[(2*i)+1][1] = THAWED;
-      if (lastStatus[i] == ENABLED) {
-        // was hot and still hot
-      } else if (lastStatus[i] == DISABLED) {
+      if (lastStatus[i] == DISABLED) {
         //project went thaw
-        theaterChase(strip.Color(255, 0, 0), 50); // White
+        theaterChase(strip.Color(255, 0, 0), 50); // red
       }
-    } else if (status[i] == DISABLED) {
+      lastStatus[i] = ENABLED;
+    }
+    if (status[i] == DISABLED) {
       Serial.println(" Disabled");
       buildResult[2*i][0] = FROZEN;
       buildResult[2*i+1][0] = FROZEN;
       buildResult[2*i][1] = FROZEN;
       buildResult[2*i+1][1] = FROZEN;
       if (lastStatus[i] == ENABLED) {
+
         //project frooze
         theaterChase(strip.Color(0, 0, 255), 50); // blue
-      } else if (lastStatus[i] == DISABLED) {
-        //was frooze stayed frooze
       }
-    } else {
-      if (lastStatus[i] == UNSET) {
-              Serial.print(" Unknown");
-      } else if (lastStatus[i] == ENABLED) {
-            Serial.print(" Enabled");
-      } else {
+      lastStatus[i] = DISABLED;
+
+    }
+    if (status[i] == UNSET) {
+        if (lastStatus[i] == UNSET) {
+          Serial.print(" Unknown");
+        } else if (lastStatus[i] == ENABLED) {
+          Serial.print(" Enabled");
+        } else if (lastStatus[i] == ENABLED) {
           Serial.print(" Disabled");
-      }
-      Serial.println(" (Cached)");
-    }
-
-    if (status[i] != UNSET) { //only update if we got a valid status
-      lastStatus[i] = status[i];
-
-    }
-    if (status[i] == lastStatus[i]) { //no change
-      delay(2000);
+        }
+        Serial.println(" (Cached)");
     }
   }
   //turn off the dance lights
@@ -315,7 +315,7 @@ int getStatus(String project, int builds[5])
   //listener.reserve(1024);
   int returnVal = UNSET;
 
-  client.stop();
+  //client.stop();
 
   if (client.connect(server, 80)) {
       //Serial.println("connected");
